@@ -1,0 +1,39 @@
+name: pcb-defect-detection_env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - notebook
+  - ipykernel
+  - pip:
+      # Deep Learning / Computer Vision
+      - torch==2.11.0
+      - torchvision==0.26.0
+      - ultralytics==8.4.26
+      - ultralytics-thop==2.0.18
+      - opencv-python==4.13.0.92
+      - albumentations==2.0.8
+
+      # Data / ML
+      - numpy==2.4.3
+      - pyyaml==6.0.3
+      - pandas==2.3.3
+      - matplotlib==3.10.8
+      - scikit-learn==1.8.0
+
+      # App / API
+      - streamlit==1.55.0
+      - fastapi==0.135.3
+      - uvicorn[standard]==0.42.0
+      - python-multipart==0.0.27
+      - requests==2.32.5
+      - huggingface-hub==1.16.4
+      - python-dotenv==1.2.2
+      - pillow==12.1.1
+
+      # Tests / tracking / métriques
+      - torchmetrics==1.9.0
+      - mlflow==3.10.1
+      - pytest==9.0.2
+      - faster-coco-eval==1.7.2
