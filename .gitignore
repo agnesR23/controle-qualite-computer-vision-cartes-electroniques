@@ -1,0 +1,72 @@
+# System files
+.DS_Store
+Thumbs.db
+Icon?
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.ipynb_checkpoints/
+
+# Environments
+.env
+.venv/
+venv/
+env/
+*.env
+
+# IDE
+.vscode/
+.idea/
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter / notebooks artifacts
+notebooks/*.pt
+notebooks/runs/
+notebooks/outputs/
+
+# Data
+data/
+
+# MLflow
+mlruns/
+
+# Training runs
+runs/
+
+# Models - not versioned in GitHub
+outputs/models/
+
+# Heavy / generated prediction outputs
+outputs/predictions/
+
+# Optional generated metrics kept in app/assets instead
+outputs/metrics/
+
+# Temporary scripts
+tree_project.py
+
+# Logs
+*.log
+
+# Model files
+*.pt
+*.pth
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Type checking / lint cache
+.mypy_cache/
+.ruff_cache/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
