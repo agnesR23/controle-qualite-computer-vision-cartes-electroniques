@@ -51,6 +51,7 @@ outputs/metrics/
 
 # Temporary scripts
 tree_project.py
+scripts/sync_hf_api.sh
 
 # Logs
 *.log
