@@ -24,7 +24,6 @@ APP_DIR = Path(__file__).resolve().parent
 
 ASSETS_DIR = APP_DIR / "assets"
 ORIGINALS_DIR = APP_DIR / "sample_images" / "originals"
-PREDICTIONS_DIR = APP_DIR / "sample_images" / "predictions"
 
 BENCHMARK_RESULTS_PATH = ASSETS_DIR / "benchmark_results.csv"
 YOLO_TUNING_RESULTS_PATH = ASSETS_DIR / "yolo_tuning_results.csv"
@@ -160,35 +159,31 @@ def plot_horizontal_metric(
     return fig
 
 
-def build_demo_pairs() -> dict[str, list[dict[str, Path]]]:
+def load_demo_images() -> dict[str, list[dict[str, Path]]]:
     """
-    Expected files:
-    app/sample_images/originals/{class_name}_01.jpg
-    app/sample_images/predictions/{class_name}_01_pred.jpg
+    Load the original demonstration images.
     """
-    demo_pairs = {}
+    demo_images = {}
 
     for class_name in CLASS_NAMES:
-        pairs = []
+        class_images = []
 
         for idx in [1, 2]:
             base_name = f"{class_name}_{idx:02d}"
             original_path = ORIGINALS_DIR / f"{base_name}.jpg"
-            prediction_path = PREDICTIONS_DIR / f"{base_name}_pred.jpg"
 
-            if original_path.exists() and prediction_path.exists():
-                pairs.append(
+            if original_path.exists():
+                class_images.append(
                     {
                         "name": base_name,
                         "original": original_path,
-                        "prediction": prediction_path,
                     }
                 )
 
-        if pairs:
-            demo_pairs[class_name] = pairs
+        if class_images:
+            demo_images[class_name] = class_images
 
-    return demo_pairs
+    return demo_images
 
 
 def render_detection_summary(
@@ -208,10 +203,10 @@ def render_detection_summary(
     st.markdown("#### Mode de prédiction")
 
     live_checked = "✅" if prediction_mode == "live" else "☐"
-    fallback_checked = "✅" if prediction_mode == "fallback" else "☐"
+    unavailable_checked = "✅" if prediction_mode == "unavailable" else "☐"
 
     st.markdown(f"{live_checked} API d’inférence active")
-    st.markdown(f"{fallback_checked} Fallback statique")
+    st.markdown(f"{unavailable_checked} API indisponible")
 
     st.markdown("#### **Score de confiance**")
     st.caption(
@@ -239,17 +234,29 @@ def render_quality_report(
         if detection.get("confidence") is not None
     ]
 
-    confidence_display = (
-        f"{max(confidence_scores):.2f}"
-        if confidence_scores
-        else "En attente de prédiction"
-    )
+    if prediction_mode != "live":
+        confidence_display = "Prédiction non effectuée"
+    elif confidence_scores:
+        confidence_display = f"{max(confidence_scores):.2f}"
+    else:
+        confidence_display = "Aucun score disponible"
 
     prediction_mode_label = {
         "live": "API d’inférence active",
-        "fallback": "Fallback statique",
+        "unavailable": "API indisponible",
         None: "En attente de prédiction",
     }.get(prediction_mode, "En attente de prédiction")
+
+    if prediction_mode == "live":
+        defect_count_display = len(detections)
+        defect_type_display = (
+            ", ".join(detected_labels)
+            if detected_labels
+            else "Aucun défaut détecté"
+        )
+    else:
+        defect_count_display = "Prédiction non effectuée"
+        defect_type_display = "Prédiction non effectuée"
 
     report_df = pd.DataFrame(
         [
@@ -259,15 +266,11 @@ def render_quality_report(
             },
             {
                 "Information": "Nombre de défauts détectés",
-                "Valeur": len(detections),
+                "Valeur": defect_count_display,
             },
             {
                 "Information": "Type de défaut détecté",
-                "Valeur": (
-                    ", ".join(detected_labels)
-                    if detected_labels
-                    else "Aucun défaut détecté"
-                ),
+                "Valeur": defect_type_display,
             },
             {"Information": "Mode de prédiction", "Valeur": prediction_mode_label},
             {"Information": "Score de confiance", "Valeur": confidence_display},
@@ -340,8 +343,7 @@ comparison_df = (
 
 best_model = comparison_df.iloc[0]
 
-demo_pairs = build_demo_pairs()
-available_classes = list(demo_pairs.keys())
+demo_images = load_demo_images()
 
 per_class_display_df = per_class_df.copy()
 per_class_display_df["display_class_name"] = per_class_display_df["class_name"].map(
@@ -408,11 +410,11 @@ api_available = check_api_health(API_URL)
 
 demo_examples = []
 
-for pairs in demo_pairs.values():
-    for pair in pairs:
-        pair = pair.copy()
-        pair["display_name"] = f"Image {len(demo_examples) + 1}"
-        demo_examples.append(pair)
+for class_images in demo_images.values():
+    for image in class_images:
+        image = image.copy()
+        image["display_name"] = f"Image {len(demo_examples) + 1}"
+        demo_examples.append(image)
 
 if not demo_examples:
     st.warning("Aucune image de démonstration disponible dans app/sample_images.")
@@ -420,10 +422,10 @@ else:
     st.sidebar.header("Tester l’application")
 
     st.sidebar.markdown("### Image à contrôler")
-    selected_example = st.sidebar.selectbox(
+    selected_image = st.sidebar.selectbox(
         "Sélectionner une image :",
         options=demo_examples,
-        format_func=lambda pair: pair["display_name"],
+        format_func=lambda image: image["display_name"],
     )
 
     st.sidebar.caption(
@@ -432,10 +434,8 @@ else:
 
     st.sidebar.markdown("### Détection de défaut")
 
-    pair = selected_example
-
-    prediction_key = f"prediction_{pair['name']}"
-    button_key = f"inference_button_{pair['name']}"
+    prediction_key = f"prediction_{selected_image['name']}"
+    button_key = f"inference_button_{selected_image['name']}"
 
     if prediction_key not in st.session_state:
         st.session_state[prediction_key] = {
@@ -456,7 +456,9 @@ else:
     if api_available:
         st.sidebar.success("API live disponible")
     else:
-        st.sidebar.warning("API indisponible : fallback statique")
+        st.sidebar.warning(
+            "API indisponible ou en cours de démarrage. Réessayez dans quelques instants."
+        )
 
     if run_inference:
         if api_available:
@@ -464,7 +466,7 @@ else:
                 with st.spinner("Détection live en cours..."):
                     api_response = predict_image_with_api(
                         api_url=API_URL,
-                        image_path=pair["original"],
+                        image_path=selected_image["original"],
                         timeout=15,
                     )
 
@@ -484,24 +486,18 @@ else:
                     }
                 else:
                     st.session_state[prediction_key] = {
-                        "mode": "fallback",
+                        "mode": "unavailable",
                         "image_bytes": None,
-                        "status": (
-                            "L’API a répondu sans image annotée : "
-                            "prédiction sauvegardée affichée."
-                        ),
+                        "status": "Réponse API incomplète. Réessayez dans quelques instants.",
                         "detected_classes": [],
                         "detections": [],
                     }
 
             except RuntimeError as error:
                 st.session_state[prediction_key] = {
-                    "mode": "fallback",
+                    "mode": "unavailable",
                     "image_bytes": None,
-                    "status": (
-                        "Erreur pendant l’appel API : "
-                        "prédiction sauvegardée affichée."
-                    ),
+                    "status": "Erreur pendant l’appel API. Réessayez dans quelques instants.",
                     "detected_classes": [],
                     "detections": [],
                 }
@@ -510,9 +506,9 @@ else:
 
         else:
             st.session_state[prediction_key] = {
-                "mode": "fallback",
+                "mode": "unavailable",
                 "image_bytes": None,
-                "status": "API indisponible : prédiction sauvegardée affichée.",
+                "status": "API indisponible ou en cours de démarrage. Réessayez dans quelques instants.",
                 "detected_classes": [],
                 "detections": [],
             }
@@ -524,18 +520,16 @@ else:
 
     with col_original:
         st.markdown("#### Visualisation image à contrôler :")
-        st.image(str(pair["original"]), width=500)
+        st.image(str(selected_image["original"]), width=500)
 
     with col_prediction:
-        prediction = st.session_state[prediction_key]
-
         st.markdown("#### Résultat de détection de défaut :")
 
         if prediction["mode"] == "live" and prediction["image_bytes"] is not None:
             st.image(prediction["image_bytes"], width=500)
 
-        elif prediction["mode"] == "fallback":
-            st.image(str(pair["prediction"]), width=500)
+        elif prediction["mode"] == "unavailable":
+            st.warning(prediction["status"])
 
         else:
             st.info("Le résultat apparaîtra ici après avoir lancé la détection.")
@@ -547,7 +541,7 @@ else:
         )
 
     render_quality_report(
-        image_name=pair["display_name"],
+        image_name=selected_image["display_name"],
         detected_classes=prediction["detected_classes"],
         detections=prediction["detections"],
         prediction_mode=prediction["mode"],
