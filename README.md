@@ -41,17 +41,42 @@ Le modèle retenu offre le meilleur compromis entre qualité de détection et ra
 
 ---
 
-## Démonstration Streamlit
+## Déploiement et démonstration
+
+Le dashboard et l’API sont déployés séparément :
+
+- **dashboard** : Streamlit Community Cloud ;
+- **API d’inférence** : Hugging Face Spaces.
+
+### Fonctionnement du dashboard Streamlit
+
+**Plateforme : Streamlit Community Cloud**
 
 ![Démo Streamlit](docs/screenshots/demo-streamlit.png)
 
-Le dashboard permet de sélectionner une image, lancer l’inférence, visualiser les défauts détectés et générer un rapport qualité automatique.
+Le dashboard permet de :
 
----
+- sélectionner une image à contrôler ;
+- l’envoyer à l’API pour lancer l’inférence ;
+- afficher l’image annotée et les résultats retournés ;
+- générer automatiquement un rapport qualité.
 
-## API FastAPI
+> [!WARNING]
+> Si l’API est indisponible, le dashboard le signale et n’affiche aucune prédiction statique.
+
+### Fonctionnement de l’API FastAPI
+
+**Plateforme : Hugging Face Spaces**
 
 ![API Swagger](docs/screenshots/api-swagger.png)
+
+L’API permet de :
+
+- recevoir une image à contrôler ;
+- exécuter l’inférence avec le modèle ;
+- détecter et localiser les défauts ;
+- retourner le type de chaque défaut et son score de confiance ;
+- retourner l’image annotée.
 
 Endpoints principaux :
 
@@ -61,8 +86,6 @@ Endpoints principaux :
 | `/model-info` | Afficher les informations du modèle |
 | `/predict` | Envoyer une image et récupérer les prédictions |
 | `/docs` | Accéder à la documentation Swagger |
-
-L’API est déployée sur Hugging Face Spaces.
 
 ---
 
@@ -122,13 +145,13 @@ streamlit run app/streamlit_app.py
 
 ```bash
 docker build -f api/Dockerfile -t controle-qualite-cv-cartes-electroniques-api .
-docker run --rm -p 7860:7860 controle-qualite-cv-cartes-electroniques-api
+docker run --rm -p 8000:7860 controle-qualite-cv-cartes-electroniques-api
 ```
 
 Swagger :
 
 ```text
-http://127.0.0.1:7860/docs
+http://127.0.0.1:8000/docs
 ```
 
 ---
@@ -159,7 +182,9 @@ Python 3.11 · YOLOv8 · PyTorch · FastAPI · Streamlit · Docker · Pytest · 
 
 ## Licence
 
-Ce projet utilise YOLOv8 via Ultralytics, distribué sous licence AGPL-3.0. Le projet est publié comme démonstrateur technique non commercial.
+Copyright © 2026 Agnès REGAUD.
+
+Ce projet est distribué sous licence [GNU Affero General Public License v3.0](LICENSE). Il utilise Ultralytics YOLOv8 sous licence AGPL-3.0.
 
 ---
 
