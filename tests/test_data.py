@@ -1,3 +1,6 @@
+# Copyright (C) 2026 Agnès REGAUD
+# SPDX-License-Identifier: AGPL-3.0-only
+
 """
 Tests for YOLO dataset integrity and PyTorch dataset loading.
 

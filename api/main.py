@@ -1,3 +1,6 @@
+# Copyright (C) 2026 Agnès REGAUD
+# SPDX-License-Identifier: AGPL-3.0-only
+
 import base64
 from io import BytesIO
 from pathlib import Path
