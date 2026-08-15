@@ -363,7 +363,7 @@ st.markdown(
     """
 ##### Application de Computer Vision — Agnès REGAUD  
 ##### Du contrôle visuel manuel à une détection automatique des défauts sur cartes électroniques pour réduire les retours client et refidéliser.  
-[LinkedIn](https://www.linkedin.com/in/agnes-regaud/) • [GitHub](https://github.com/agnesR23?tab=repositories&q=&type=&language=&sort=name)
+[LinkedIn](https://www.linkedin.com/in/agnes-regaud/) • [GitHub](https://github.com/agnesR23/controle-qualite-computer-vision-cartes-electroniques)
 """
 )
 
