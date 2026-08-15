@@ -184,7 +184,7 @@ Python 3.11 · YOLOv8 · PyTorch · FastAPI · Streamlit · Docker · Pytest · 
 
 Copyright © 2026 Agnès REGAUD.
 
-Ce projet est distribué sous licence [GNU Affero General Public License v3.0](LICENSE). Il utilise Ultralytics YOLOv8 sous licence AGPL-3.0.
+Ce projet est distribué sous licence [GNU Affero General Public License v3.0](LICENSE). Il utilise [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics) sous licence AGPL-3.0.
 
 ---
 
