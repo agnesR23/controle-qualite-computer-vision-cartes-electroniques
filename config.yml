@@ -3,7 +3,7 @@ project:
 
 dataset:
   name: pcb_defect_dataset
-  root_dir: data/raw/pcb-defect-dataset
+  root_dir: data/processed/pcb-defect-dataset
 
 benchmark:
   selected_models:
@@ -18,11 +18,9 @@ training:
   device: auto
   num_workers: 4
   augmentation:
-    enabled: true
     horizontal_flip: 0.5
     vertical_flip: 0.0
     rotation_degrees: 5
-    brightness_contrast: 0.2
 
 models:
   yolov8s:
@@ -31,14 +29,6 @@ models:
     optimizer: adamw
     learning_rate: 0.001
     weight_decay: 0.0005
-    scheduler:
-      enabled: true
-      name: reduce_on_plateau
-      patience: 3
-      factor: 0.1
-    early_stopping:
-      enabled: false
-      patience: 10
 
   faster_rcnn_resnet50_fpn:
     pretrained: true
@@ -47,44 +37,12 @@ models:
     learning_rate: 0.005
     weight_decay: 0.0005
     train_subset_size: 3000
-    val_subset_size: 400
     force_cpu: true
     num_workers: 0
     epochs: 1
-    scheduler:
-      enabled: true
-      name: step_lr
-      step_size: 10
-      gamma: 0.1
-    early_stopping:
-      enabled: false
       
 inference:
-  default_model: yolov8s
-  best_model: null
-  device: auto
   image_size: 640
   thresholds:
     confidence: 0.30
     iou: 0.50
-    max_detections: 20
-  model_paths:
-    yolov8s: outputs/models/yolov8s_best.pt
-    faster_rcnn_resnet50_fpn: outputs/models/faster_rcnn_resnet50_fpn_best.pth
-    
-visualization:
-  draw_boxes: true
-  draw_labels: true
-  draw_scores: true
-  line_width: 2
-  save_predictions: true
-
-outputs:
-  models_dir: outputs/models
-  metrics_dir: outputs/metrics
-  predictions_dir: outputs/predictions
-
-api:
-  enabled: false
-  host: "0.0.0.0"
-  port: 8000
