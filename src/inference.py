@@ -7,7 +7,6 @@ from typing import Any
 
 import numpy as np
 from huggingface_hub import hf_hub_download
-from PIL import Image
 from ultralytics import YOLO
 
 def load_yolo_model(model_path: Path) -> YOLO:
@@ -122,62 +121,6 @@ def predict_image(
     return detections
 
 
-def save_annotated_prediction(
-    model: YOLO,
-    image_path: Path,
-    output_path: Path,
-    confidence_threshold: float,
-    iou_threshold: float,
-    image_size: int,
-    device: str,
-) -> Path:
-    """
-    Run object detection and save the annotated image.
-
-    This function is mainly used in notebooks to generate static prediction
-    images for the Streamlit dashboard fallback.
-
-    Parameters
-    ----------
-    model : YOLO
-        Loaded YOLO model.
-    image_path : Path
-        Path to the input image.
-    output_path : Path
-        Path where the annotated image is saved.
-    confidence_threshold : float
-        Minimum confidence score.
-    iou_threshold : float
-        IoU threshold used during prediction.
-    image_size : int
-        Image size used by YOLO during inference.
-    device : str
-        Inference device.
-
-    Returns
-    -------
-    Path
-        Path to the saved annotated image.
-    """
-    result = model.predict(
-        source=str(image_path),
-        conf=confidence_threshold,
-        iou=iou_threshold,
-        imgsz=image_size,
-        device=device,
-        verbose=False,
-    )[0]
-
-    annotated_image = result.plot()
-
-    # Ultralytics returns BGR arrays. Convert to RGB before saving with PIL.
-    annotated_image_rgb = annotated_image[..., ::-1]
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    Image.fromarray(np.asarray(annotated_image_rgb)).save(output_path)
-
-    return output_path
-
 
 def predict_image_with_annotation(
     model: YOLO,
@@ -193,10 +136,8 @@ def predict_image_with_annotation(
     This function is intended for live inference through the API, so that the
     Streamlit dashboard can display a prediction generated at request time.
 
-    It differs from:
-    - predict_image(), which returns structured detections only;
-    - save_annotated_prediction(), which is mainly used in notebooks to generate
-      static prediction images for the dashboard fallback.
+    Unlike predict_image(), which returns structured detections only,
+    this function also returns the annotated image required by the live API.
 
     Parameters
     ----------
