@@ -24,7 +24,7 @@ from src.data import PCBDetectionDataset, collate_fn
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-DATASET_DIR = PROJECT_ROOT / "data" / "raw" / "pcb-defect-dataset"
+DATASET_DIR = PROJECT_ROOT / "data" / "processed" / "pcb-defect-dataset"
 DATA_YAML_PATH = DATASET_DIR / "data.yaml"
 
 EXPECTED_SPLITS = ["train", "val", "test"]

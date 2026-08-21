@@ -32,6 +32,7 @@ def train_yolov8(
         data=str(data_yaml_path),
         imgsz=training_config["image_size"],
         epochs=training_config["epochs"],
+        seed=training_config["random_seed"],
         batch=model_config["batch_size"],
         device=training_config["device"],
         workers=training_config["num_workers"],
@@ -57,6 +58,10 @@ def train_yolov8(
         batch=model_config["batch_size"],
         device=training_config["device"],
         split="val",
+        project=str(outputs_dir.resolve()),
+        name=run_name or model_name,
+        exist_ok=True,
+        plots=False,
         verbose=False,
     )
 
@@ -148,13 +153,17 @@ def train_torchvision_model(
     import time
     import torch
     import yaml
+    from sklearn.model_selection import train_test_split
     from torch.utils.data import DataLoader, Subset
-    from torchvision.models.detection import fasterrcnn_resnet50_fpn   
+    from torchvision.models.detection import fasterrcnn_resnet50_fpn
     from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
     from src.data import PCBDetectionDataset, collate_fn
 
     device = torch.device(training_config["device"])
+    torch.manual_seed(
+        training_config["random_seed"]
+    )
     outputs_dir.mkdir(parents=True, exist_ok=True)
 
     with open(data_yaml_path, "r", encoding="utf-8") as file:
@@ -170,11 +179,36 @@ def train_torchvision_model(
         labels_dir=dataset_root / data_config["val"] / "labels",
     )
 
-    train_subset_size = min(model_config["train_subset_size"], len(train_dataset))
-    val_subset_size = min(model_config["val_subset_size"], len(val_dataset))
-    
-    train_dataset = Subset(train_dataset, range(train_subset_size))
-    val_dataset = Subset(val_dataset, range(val_subset_size))
+    train_class_ids: list[int] = []
+
+    for image_path in train_dataset.image_paths:
+        label_path = train_dataset.labels_dir / f"{image_path.stem}.txt"
+        class_ids = {
+            int(line.split()[0])
+            for line in label_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        }
+
+        if len(class_ids) != 1:
+            raise ValueError(
+                f"Expected exactly one class in {label_path.name}."
+            )
+
+        train_class_ids.append(next(iter(class_ids)))
+
+    train_subset_size = min(
+        model_config["train_subset_size"],
+        len(train_dataset),
+    )
+
+    train_indices, _ = train_test_split(
+        range(len(train_dataset)),
+        train_size=train_subset_size,
+        random_state=training_config["random_seed"],
+        stratify=train_class_ids,
+    )
+
+    train_dataset = Subset(train_dataset, train_indices)
 
     train_dataloader = DataLoader(
         train_dataset,
@@ -203,7 +237,6 @@ def train_torchvision_model(
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
 
-    
     model.to(device)
 
     optimizer_name = model_config["optimizer"].lower()
@@ -355,6 +388,10 @@ def log_run_to_mlflow(
     epochs: int,
     batch_size: int,
     image_size: int,
+    random_seed: int,
+    device: str,
+    train_images: int,
+    validation_images: int,
     metrics: dict[str, Any],
     artifact_dir: Path,
 ) -> None:
@@ -370,6 +407,13 @@ def log_run_to_mlflow(
         mlflow.log_param("epochs", epochs)
         mlflow.log_param("batch_size", batch_size)
         mlflow.log_param("image_size", image_size)
+        mlflow.log_param("random_seed", random_seed)
+        mlflow.log_param("device", device)
+        mlflow.log_param("train_images", train_images)
+        mlflow.log_param(
+            "validation_images",
+            validation_images,
+        )
 
         numeric_metrics = {
             key: value
