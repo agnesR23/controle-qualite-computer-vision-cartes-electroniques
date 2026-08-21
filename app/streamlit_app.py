@@ -4,8 +4,9 @@
 # -----------------------------
 # Imports
 # -----------------------------
-from pathlib import Path
 import base64
+import time
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -30,9 +31,12 @@ ORIGINALS_DIR = APP_DIR / "sample_images" / "originals"
 
 BENCHMARK_RESULTS_PATH = ASSETS_DIR / "benchmark_results.csv"
 YOLO_TUNING_RESULTS_PATH = ASSETS_DIR / "yolo_tuning_results.csv"
-PER_CLASS_METRICS_PATH = ASSETS_DIR / "per_class_metrics.csv"
+FINAL_TEST_METRICS_PATH = ASSETS_DIR / "final_test_metrics.csv"
+FINAL_TEST_PER_CLASS_METRICS_PATH = (
+    ASSETS_DIR / "final_test_per_class_metrics.csv"
+)
+TEST_DIAGNOSTICS_PATH = ASSETS_DIR / "test_diagnostics.png"
 RESULTS_PATH = ASSETS_DIR / "results.csv"
-CONFUSION_MATRIX_PATH = ASSETS_DIR / "confusion_matrix_normalized.png"
 
 # -----------------------------
 # API configuration
@@ -191,29 +195,29 @@ def load_demo_images() -> dict[str, list[dict[str, Path]]]:
 
 def render_detection_summary(
     detected_classes: list[str],
-    prediction_mode: str | None,
+    api_available: bool,
 ) -> None:
     """
-    Display detected classes, prediction mode and automatic quality report.
+    Display detected classes, inference service availability and confidence information.
     """
-    st.markdown("#### Défauts détectés")
-
     for class_name in CLASS_NAMES:
         label = CLASS_LABELS.get(class_name, class_name)
         checked = "✅" if class_name in detected_classes else "☐"
         st.markdown(f"{checked} {label}")
 
-    st.markdown("#### Mode de prédiction")
+    st.markdown("#### État du système")
 
-    live_checked = "✅" if prediction_mode == "live" else "☐"
-    unavailable_checked = "✅" if prediction_mode == "unavailable" else "☐"
+    if api_available:
+        st.markdown("✅ Système de détection opérationnel (API disponible)")
+    else:
+        st.markdown("❌ Système de détection indisponible (API indisponible)")
 
-    st.markdown(f"{live_checked} API d’inférence active")
-    st.markdown(f"{unavailable_checked} API indisponible")
-
-    st.markdown("#### **Score de confiance**")
-    st.caption(
-        "Le score affiché sur l’image annotée correspond au niveau de confiance du modèle pour le défaut détecté."
+    st.markdown("#### Score de confiance")
+    st.markdown(
+        "Sur l’image, chaque défaut détecté est accompagné de son score "
+    "de confiance. Il mesure la correspondance entre chaque défaut détecté "
+    "et les caractéristiques apprises par le modèle pendant l’entraînement. "
+    "Si plusieurs défauts sont détectés, le rapport final par image affiche le score le plus élevé."
     )
 
 
@@ -222,6 +226,7 @@ def render_quality_report(
     detected_classes: list[str],
     detections: list[dict],
     prediction_mode: str | None,
+    api_available: bool,
 ) -> None:
     """
     Display the automatic quality report below the images.
@@ -244,11 +249,11 @@ def render_quality_report(
     else:
         confidence_display = "Aucun score disponible"
 
-    prediction_mode_label = {
-        "live": "API d’inférence active",
-        "unavailable": "API indisponible",
-        None: "En attente de prédiction",
-    }.get(prediction_mode, "En attente de prédiction")
+    system_status = (
+        "Système de détection opérationnel (API disponible)"
+        if api_available
+        else "Système de détection indisponible (API indisponible)"
+    )
 
     if prediction_mode == "live":
         defect_count_display = len(detections)
@@ -275,8 +280,8 @@ def render_quality_report(
                 "Information": "Type de défaut détecté",
                 "Valeur": defect_type_display,
             },
-            {"Information": "Mode de prédiction", "Valeur": prediction_mode_label},
-            {"Information": "Score de confiance", "Valeur": confidence_display},
+            {"Information": "État du système", "Valeur": system_status},
+            {"Information": "Score de confiance le plus élevé de l’image", "Valeur": confidence_display},
         ]
     )
     st.markdown("---")
@@ -334,7 +339,8 @@ def render_quality_report(
 # -----------------------------
 benchmark_df = load_csv(BENCHMARK_RESULTS_PATH)
 tuning_df = load_csv(YOLO_TUNING_RESULTS_PATH)
-per_class_df = load_csv(PER_CLASS_METRICS_PATH)
+final_test_metrics_df = load_csv(FINAL_TEST_METRICS_PATH)
+per_class_df = load_csv(FINAL_TEST_PER_CLASS_METRICS_PATH)
 results_df = load_csv(RESULTS_PATH)
 
 comparison_df = (
@@ -345,6 +351,8 @@ comparison_df = (
 )
 
 best_model = comparison_df.iloc[0]
+
+final_test_metrics = final_test_metrics_df.iloc[0]
 
 demo_images = load_demo_images()
 
@@ -366,6 +374,13 @@ st.markdown(
 [LinkedIn](https://www.linkedin.com/in/agnes-regaud/) • [GitHub](https://github.com/agnesR23/controle-qualite-computer-vision-cartes-electroniques)
 """
 )
+st.markdown(
+    """
+    Application développée à partir du
+    [PCB Defect Dataset disponible sur Kaggle]
+    (https://www.kaggle.com/datasets/norbertelter/pcb-defect-dataset).
+    """
+)
 
 st.success(
     """
@@ -374,12 +389,23 @@ st.success(
 ##### Un défaut qui échappe au contrôle qualité ne coûte pas seulement une carte à remplacer : il mobilise le SAV, relance la logistique et grignote la marge.
 ##### Cette application de Computer Vision permet de contrôler automatiquement et rapidement une carte électronique avant expédition :
 
-- **analyse en 0,004 seconde par image** ;
+- **inférence locale mesurée à environ 4 ms par image sur le jeu de test** ;
 - **détection automatique de 6 types de défauts visibles** ;
 - **localisation du défaut sur l’image** ;
-- **rapport qualité automatique** : image contrôlée, défaut détecté, score de confiance et mode de prédiction.
+- **rapport qualité automatique** : image contrôlée, défaut détecté, score de confiance et état du système.
 
 ##### À partir de ce rapport, l’entreprise peut déclencher une action qualité : alerte équipe, carte isolée, contrôle historisé, défauts récurrents suivis.
+"""
+)
+
+st.info(
+    """
+### 🧭 Mode d’emploi
+
+1. **Choisir ci-dessous une image de carte électronique parmi les 12 exemples.**
+2. **Cliquer sur le bouton rouge « Cliquer ici pour détecter ».**
+3. **Consulter le défaut localisé, le score de confiance et le rapport qualité.**
+4. **Ouvrir la partie technique pour en savoir plus sur les données, les modèles et leurs performances.**
 """
 )
 
@@ -422,20 +448,45 @@ for class_images in demo_images.values():
 if not demo_examples:
     st.warning("Aucune image de démonstration disponible dans app/sample_images.")
 else:
-    st.sidebar.header("Tester l’application")
-
-    st.sidebar.markdown("### Image à contrôler")
-    selected_image = st.sidebar.selectbox(
-        "Sélectionner une image :",
-        options=demo_examples,
-        format_func=lambda image: image["display_name"],
+    st.markdown(
+        """
+<div style="
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+">
+    <span style="font-size: 28px; font-weight: 700;">
+        Tester l’application
+    </span>
+    <span style="font-size: 18px;">
+        — À chaque clic, l’image est analysée par le modèle et le résultat est renvoyé dans l’application.
+    </span>
+</div>
+""",
+        unsafe_allow_html=True,
     )
 
-    st.sidebar.caption(
-        "Cette image sera envoyée au modèle, qui va prédire la localisation et le type de défaut."
+    col_choice, _, col_result_title, col_defects_title = st.columns(
+        [1, 0.35, 1, 0.75]
     )
 
-    st.sidebar.markdown("### Détection de défaut")
+    with col_choice:
+        st.markdown("#### Choisir une image")
+
+        selected_image = st.selectbox(
+            "Choisir une image",
+            options=demo_examples,
+            format_func=lambda image: image["display_name"],
+            label_visibility="collapsed",
+        )
+
+    with col_result_title:
+        st.markdown("#### Résultat de détection")
+
+    with col_defects_title:
+        st.markdown("#### Défauts détectés")
 
     prediction_key = f"prediction_{selected_image['name']}"
     button_key = f"inference_button_{selected_image['name']}"
@@ -447,100 +498,162 @@ else:
             "status": None,
             "detected_classes": [],
             "detections": [],
+            "response_time": None,
         }
 
-    run_inference = st.sidebar.button(
-        "Cliquer ici pour détecter le défaut",
-        key=button_key,
-        type="primary",
-        use_container_width=True,
-    )
+    col_visuals, col_summary = st.columns([2.35, 0.75])
 
-    if api_available:
-        st.sidebar.success("API live disponible")
-    else:
-        st.sidebar.warning(
-            "API indisponible ou en cours de démarrage. Réessayez dans quelques instants."
+    with col_visuals:
+        col_original, col_button, col_prediction = st.columns(
+            [1, 0.35, 1],
+            vertical_alignment="center",
         )
 
-    if run_inference:
-        if api_available:
-            try:
-                with st.spinner("Détection live en cours..."):
-                    api_response = predict_image_with_api(
-                        api_url=API_URL,
-                        image_path=selected_image["original"],
-                        timeout=15,
+        with col_original:
+            st.image(
+                str(selected_image["original"]),
+                use_container_width=True,
+            )
+
+        with col_button:
+            run_inference = st.button(
+                "Cliquer ici pour détecter",
+                key=button_key,
+                type="primary",
+                use_container_width=True,
+            )
+
+        if run_inference:
+            if api_available:
+                try:
+                    with st.spinner("Détection en cours..."):
+                        response_start_time = time.perf_counter()
+
+                        api_response = predict_image_with_api(
+                            api_url=API_URL,
+                            image_path=selected_image["original"],
+                            timeout=15,
+                        )
+
+                        response_time = time.perf_counter() - response_start_time
+
+                    annotated_image_base64 = api_response.get(
+                        "annotated_image_base64"
+                    )
+                    detections = api_response.get("detections", [])
+                    detected_classes = sorted(
+                        {
+                            detection["class_name"]
+                            for detection in detections
+                        }
                     )
 
-                annotated_image_base64 = api_response.get("annotated_image_base64")
-                detections = api_response.get("detections", [])
-                detected_classes = sorted(
-                    {detection["class_name"] for detection in detections}
-                )
+                    if annotated_image_base64:
+                        st.session_state[prediction_key] = {
+                            "mode": "live",
+                            "image_bytes": base64.b64decode(
+                                annotated_image_base64
+                            ),
+                            "status": "Résultat généré.",
+                            "detected_classes": detected_classes,
+                            "detections": detections,
+                            "response_time": response_time,
+                        }
+                    else:
+                        st.session_state[prediction_key] = {
+                            "mode": "unavailable",
+                            "image_bytes": None,
+                            "status": (
+                                "Réponse incomplète. "
+                                "Réessayez dans quelques instants."
+                            ),
+                            "detected_classes": [],
+                            "detections": [],
+                            "response_time": None,
+                        }
 
-                if annotated_image_base64:
-                    st.session_state[prediction_key] = {
-                        "mode": "live",
-                        "image_bytes": base64.b64decode(annotated_image_base64),
-                        "status": "Résultat généré en live via l’API.",
-                        "detected_classes": detected_classes,
-                        "detections": detections,
-                    }
-                else:
+                except RuntimeError as error:
                     st.session_state[prediction_key] = {
                         "mode": "unavailable",
                         "image_bytes": None,
-                        "status": "Réponse API incomplète. Réessayez dans quelques instants.",
+                        "status": (
+                            "Erreur pendant la détection. "
+                            "Réessayez dans quelques instants."
+                        ),
                         "detected_classes": [],
                         "detections": [],
+                        "response_time": None,
                     }
 
-            except RuntimeError as error:
+                    st.markdown(f"Détail technique : {error}")
+
+            else:
                 st.session_state[prediction_key] = {
                     "mode": "unavailable",
                     "image_bytes": None,
-                    "status": "Erreur pendant l’appel API. Réessayez dans quelques instants.",
+                    "status": (
+                        "Système de détection indisponible. "
+                        "Réessayez dans quelques instants."
+                    ),
                     "detected_classes": [],
                     "detections": [],
+                    "response_time": None,
                 }
-                
-                st.sidebar.caption(f"Détail technique : {error}")
 
-        else:
-            st.session_state[prediction_key] = {
-                "mode": "unavailable",
-                "image_bytes": None,
-                "status": "API indisponible ou en cours de démarrage. Réessayez dans quelques instants.",
-                "detected_classes": [],
-                "detections": [],
-            }
+        prediction = st.session_state[prediction_key]
 
-    prediction = st.session_state[prediction_key]
+        with col_prediction:
+            if (
+                prediction["mode"] == "live"
+                and prediction["image_bytes"] is not None
+            ):
+                st.image(
+                    prediction["image_bytes"],
+                    use_container_width=True,
+                )
 
+            elif prediction["mode"] == "unavailable":
+                st.warning(prediction["status"])
+            else:
+                st.markdown(
+                    """
+                    <div style="
+                        width: 100%;
+                        aspect-ratio: 1 / 1;
+                    ">
+                        <div style="
+                            box-sizing: border-box;
+                            padding: 16px;
+                            border: 1px solid #c7ddf4;
+                            border-radius: 8px;
+                            background-color: #eaf3fc;
+                            color: #155a96;
+                        ">
+                            Le résultat apparaîtra ici après avoir lancé la détection.
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+        if prediction["response_time"] is not None:
+            _, _, col_response_time = st.columns([1, 0.35, 1])
 
-    col_original, col_prediction, col_summary = st.columns([1, 1, 0.75])
+            with col_response_time:
+                response_time_display = (
+                    f'{prediction["response_time"]:.2f}'.replace(".", ",")
+                )
 
-    with col_original:
-        st.markdown("#### Visualisation image à contrôler :")
-        st.image(str(selected_image["original"]), width=500)
+                st.info(
+                    f"""
+            ### ⏱️ Temps de réponse : {response_time_display} s
 
-    with col_prediction:
-        st.markdown("#### Résultat de détection de défaut :")
-
-        if prediction["mode"] == "live" and prediction["image_bytes"] is not None:
-            st.image(prediction["image_bytes"], width=500)
-
-        elif prediction["mode"] == "unavailable":
-            st.warning(prediction["status"])
-
-        else:
-            st.info("Le résultat apparaîtra ici après avoir lancé la détection.")
-
+            Durée entre l’envoi de l’image par Streamlit et la réception du résultat : transfert vers l’API, calcul du modèle et retour de la réponse.
+            """
+                )
     with col_summary:
         render_detection_summary(
             detected_classes=prediction["detected_classes"],
-            prediction_mode=prediction["mode"],
+            api_available=api_available,
         )
 
     render_quality_report(
@@ -548,6 +661,7 @@ else:
         detected_classes=prediction["detected_classes"],
         detections=prediction["detections"],
         prediction_mode=prediction["mode"],
+        api_available=api_available,
     )
 
 # -----------------------------
@@ -572,6 +686,138 @@ with st.expander("Partie technique du projet", expanded=False):
     # -----------------------------
     # A. Model comparison
     # -----------------------------
+    st.markdown(
+        """
+    <style>
+    .data-preparation-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 17px;
+    }
+    .data-preparation-table th {
+        font-size: 18px;
+        font-weight: 700;
+        background-color: #f1f5f9;
+    }
+    .data-preparation-table th,
+    .data-preparation-table td {
+        padding: 12px 14px;
+        border: 1px solid #d1d5db;
+        text-align: left;
+        vertical-align: top;
+    }
+    .data-preparation-table td:first-child {
+        width: 25%;
+        font-weight: 700;
+    }
+    </style>
+    """,
+        unsafe_allow_html=True,
+    )
+    st.subheader("Préparation des données")
+
+    st.markdown(
+        """
+    #### Ce qui a été observé
+
+    - Le dataset Kaggle contenait **10 668 images** : **2 667 images sources** et trois copies transformées de chacune — rotations à **90°** et **270°**, et variation de **luminosité**.
+    - Il était déjà réparti en **8 534 images d’entraînement**, **1 066 de validation** et **1 068 de test**.
+    - Mais pour **1 556 images sources sur 2 667**, soit **58 %**, les copies d’une même image étaient réparties dans plusieurs jeux, créant une fuite de données.
+    - Et **10 doublons**, répartis en **4 groupes**, ont également été détectés, avec parfois des annotations différentes.
+    """
+    )
+
+    st.markdown(
+        "**Pour corriger ces problèmes, les jeux de données ont été reconstruits avant l’entraînement.**"
+    )
+    st.markdown("#### Ce qui a été fait")
+
+    data_processing_df = pd.DataFrame(
+        [
+            {
+                "Traitement": "Doublons",
+                "Réalisation": (
+                    "Suppression des doublons : "
+                    "2 657 images sources uniques conservées."
+                ),
+            },
+            {
+                "Traitement": "Fuite de données",
+                "Réalisation": (
+                    "Regroupement de chaque image source avec ses "
+                    "copies transformées."
+                ),
+            },
+            {
+                "Traitement": "Nouvelle répartition",
+                "Réalisation": (
+                    "Séparation stratifiée en entraînement, validation et test."
+                ),
+            },
+            {
+                "Traitement": "Copies transformées",
+                "Réalisation": (
+                    "Conservation uniquement dans le jeu d’entraînement."
+                ),
+            },
+            {
+                "Traitement": "Vérification finale",
+                "Réalisation": (
+                    "Aucune image source commune entre les trois jeux."
+                ),
+            },
+        ]
+    )
+
+    st.markdown(
+        data_processing_df.to_html(
+            index=False,
+            classes="data-preparation-table",
+            escape=False,
+        ),
+        unsafe_allow_html=True,
+    )
+    st.markdown("#### Répartition avant et après préparation")
+
+    data_split_df = pd.DataFrame(
+        [
+            {
+                "Jeu": "Entraînement",
+                "Données fournies": "8 534 images",
+                "Après préparation": (
+                    "8 500 images : 2 125 images sources "
+                    "et leurs copies transformées"
+                ),
+            },
+            {
+                "Jeu": "Validation",
+                "Données fournies": "1 066 images",
+                "Après préparation": "266 images sources uniquement",
+            },
+            {
+                "Jeu": "Test",
+                "Données fournies": "1 068 images",
+                "Après préparation": "266 images sources uniquement",
+            },
+            {
+                "Jeu": "Total",
+                "Données fournies": "10 668 images",
+                "Après préparation": "9 032 images",
+            },
+        ]
+    )
+
+    st.markdown(
+        data_split_df.to_html(
+            index=False,
+            classes="data-preparation-table",
+            escape=False,
+        ),
+        unsafe_allow_html=True,
+    )
+
+    st.divider()
+
     st.subheader("Comparaison des modèles")
 
     st.markdown(
@@ -583,12 +829,14 @@ with st.expander("Partie technique du projet", expanded=False):
 
     st.markdown(
         """
-        ##### Le benchmark compare le modèle de référence Faster R-CNN, une baseline YOLOv8s et plusieurs configurations YOLO optimisées.
+    ##### Conditions du benchmark
 
-        - **Faster R-CNN** : modèle de référence, testé en CPU avec une configuration allégée.
-        - **YOLOv8s baseline** : premier entraînement YOLO, utilisé comme point de départ.
-        - **YOLOv8s optimisé** : variantes testées sur les epochs, le learning rate et la batch size.
-        """
+    - **Faster R-CNN** : entraîné sur 3 000 images stratifiées pendant 1 époque sur CPU, afin de limiter le temps d’exécution.
+    - **YOLOv8s baseline et variantes** : entraînés sur les 8 500 images d’entraînement avec accélération MPS.
+    - Tous les modèles sont comparés avec les mêmes métriques sur les 266 images du jeu de validation.
+
+    **Les temps d’inférence restent indicatifs : Faster R-CNN a été mesuré sur CPU et YOLOv8s sur MPS.**
+    """
     )
 
     st.markdown(
@@ -619,20 +867,46 @@ with st.expander("Partie technique du projet", expanded=False):
             "map50_95": "mAP50-95",
             "map50": "mAP50",
             "training_time": "Temps entraînement (s)",
-            "inference_time": "Temps inférence (s)",
+            "inference_time": "Temps inférence — validation (s)",
         }
     )
 
     comparison_display_df = format_metric_columns(
         comparison_display_df,
-        ["mAP50-95", "mAP50", "Temps entraînement (s)", "Temps inférence (s)"],
+        [
+        "mAP50-95",
+        "mAP50",
+        "Temps entraînement (s)",
+        "Temps inférence — validation (s)",
+        ],
+    )
+
+    best_model_name = str(best_model["model_name"])
+
+    comparison_styler = comparison_display_df.style.apply(
+        lambda row: [
+            "background-color: #dcfce7; font-weight: 600;"
+            if row["Modèle / configuration"] == best_model_name
+            else ""
+            for _ in row
+        ],
+        axis=1,
+    )
+    comparison_styler = comparison_styler.format(
+        {
+            "mAP50-95": "{:.3f}",
+            "mAP50": "{:.3f}",
+            "Temps entraînement (s)": "{:.1f}",
+            "Temps inférence — validation (s)": "{:.3f}",
+        }
     )
 
     st.dataframe(
-        comparison_display_df,
+        comparison_styler,
         use_container_width=True,
         hide_index=True,
     )
+
 
     st.markdown(
         """
@@ -646,69 +920,199 @@ with st.expander("Partie technique du projet", expanded=False):
     st.divider()
     st.subheader("Sélection du modèle")
 
-    col_best_1, col_best_2, col_best_3 = st.columns(3)
-
-    with col_best_1:
-        st.metric(
-            label="Modèle retenu",
-            value=str(best_model["model_name"]),
-        )
-
-    with col_best_2:
-        st.metric(
-            label="mAP50-95",
-            value=f'{best_model["map50_95"]:.3f}',
-        )
-
-    with col_best_3:
-        st.metric(
-            label="Temps d’inférence (s)",
-            value=f'{best_model["inference_time"]:.3f}',
-        )
-
     st.success(
-        """
+    """
     ### Décision
-    Le modèle retenu présente le meilleur compromis entre performance globale et rapidité d’inférence.
+
+    La configuration surlignée, **YOLOv8s entraîné pendant 20 époques**, est retenue car elle obtient la meilleure mAP50-95 sur le jeu de validation.
+
+    Elle améliore la qualité globale de détection par rapport à la baseline YOLOv8s, tout en conservant un temps d’inférence adapté à une application interactive.
+
+    Le jeu de test n’a pas participé à la sélection. Il est utilisé une seule fois pour mesurer les performances finales du modèle retenu.
+    """
+    )
+    st.markdown("### Résultats finaux sur le jeu de test")
+    st.markdown(
+        """
+    #### Résultats mesurés une seule fois sur 266 images indépendantes, après la sélection du modèle.
     """
     )
 
+    response_time = (
+        prediction.get("response_time")
+        if demo_examples
+        else None
+    )
+
+    response_time_display = (
+        f"{response_time:.2f} s".replace(".", ",")
+        if response_time is not None
+        else "À mesurer lors d’une détection"
+    )
+
+    final_results_df = pd.DataFrame(
+        [
+            {
+                "Indicateur": "mAP50-95",
+                "Valeur": f'{final_test_metrics["map50_95"]:.3f}',
+                "Signification": (
+                    "Moyenne des performances sur les six catégories, "
+                    "avec des seuils de recouvrement entre la boîte prédite "
+                    "et la zone réelle allant de 50 % à 95 %. Le score de 0,608 sur 1, "
+                    "inférieur au mAP50 de 0,985, montre que le modèle détecte très "
+                    "bien les défauts, mais perd en performance lorsque la boîte doit "
+                    "épouser plus précisément leur emplacement."
+                ),
+            },
+            {
+                "Indicateur": "mAP50",
+                "Valeur": f'{final_test_metrics["map50"]:.3f}',
+                "Signification": (
+                    "Performance moyenne de détection sur les six catégories "
+                    "avec un seuil de recouvrement de 50 %. Le score de 0,985 "
+                    "indique une détection très performante avec ce critère."
+                ),
+            },
+            {
+                "Indicateur": "Précision",
+                "Valeur": f'{final_test_metrics["precision"]:.3f}',
+                "Signification": (
+                    "96,4 % des zones signalées par le modèle correspondent "
+                    "à un défaut réel : les fausses alertes restent limitées."
+                ),
+            },
+            {
+                "Indicateur": "Rappel",
+                "Valeur": f'{final_test_metrics["recall"]:.3f}',
+                "Signification": (
+                    "99,1 % des défauts réels sont détectés : très peu de défauts "
+                    "risquent d’échapper au contrôle avant expédition."
+                ),
+            },
+            {
+                "Indicateur": "Temps de calcul local",
+                "Valeur": (
+                    f'{final_test_metrics["inference_time"] * 1000:.1f} ms'
+                ),
+                "Signification": (
+                    "Temps moyen nécessaire au modèle seul pour analyser une image "
+                    "dans l’environnement local de test."
+                ),
+            },
+            {
+                "Indicateur": "Temps de réponse de l’application",
+                "Valeur": response_time_display,
+                "Signification": (
+                    "Temps réellement attendu par l’utilisateur, comprenant "
+                    "le transfert de l’image, le calcul du modèle et le retour "
+                    "du résultat par l’API."
+                ),
+            },
+        ]
+    )
+
+    st.markdown(
+        """
+    <style>
+    .final-results-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 17px;
+    }
+    .final-results-table th {
+        font-size: 18px;
+        font-weight: 700;
+        text-align: left;
+        background-color: #f1f5f9;
+    }
+    .final-results-table th,
+    .final-results-table td {
+        padding: 12px 14px;
+        border: 1px solid #d1d5db;
+        vertical-align: top;
+    }
+    .final-results-table td:first-child {
+        font-weight: 700;
+    }
+    .final-results-table td:nth-child(2) {
+        font-weight: 700;
+        white-space: nowrap;
+    }
+    </style>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        final_results_df.to_html(
+            index=False,
+            classes="final-results-table",
+            escape=False,
+        ),
+        unsafe_allow_html=True,
+    )
     # -----------------------------
     # C. Technical details
     # -----------------------------
 
     st.markdown("### Analyse des performances du modèle retenu")
 
-    col_confusion, col_right = st.columns([1.5, 1])
+    st.markdown("#### Détection, classification et erreurs — jeu de test")
+    st.image(TEST_DIAGNOSTICS_PATH, width=1500)
 
-    with col_confusion:
-        st.markdown("#### Matrice de confusion")
-        st.image(CONFUSION_MATRIX_PATH, use_container_width=True)
+    col_class, col_training = st.columns(2)
 
-    with col_right:
-        st.markdown("#### Performance par type de défaut")
+    with col_class:
+        st.markdown("#### Performance par type de défaut — jeu de test")
 
         fig_class = plot_horizontal_metric(
             df=per_class_display_df,
             label_col="display_class_name",
             value_col="ap50_95",
-            title="AP50-95 par classe",
+            title="AP50-95 par classe — jeu de test",
             xlabel="AP50-95",
             figsize=(5, 3),
         )
-        st.pyplot(fig_class)
+        st.pyplot(fig_class, use_container_width=True)
+        plt.close(fig_class)
 
-        st.markdown("#### Évolution de l’entraînement")
-        st.caption(
-            "Courbe issue du fichier results.csv généré automatiquement par Ultralytics."
+        st.info(
+            """
+        #### Lecture du graphique des performances par type de défaut
+
+        L’AP50-95 par classe évalue :
+
+        - la détection des défauts réels ;
+        - la limitation des zones signalées à tort ;
+        - la précision de localisation des défauts.
+
+        Les résultats sont relativement homogènes : l’AP50-95 varie de **0,570 à 0,645** selon les catégories. Aucun type de défaut ne présente donc de décrochage important.
+        """
         )
 
-        fig_train, ax_train = plt.subplots(figsize=(4.2, 2.2))
+    with col_training:
+        st.markdown("#### Évolution de l’entraînement")
 
-        ax_train.plot(results_df["metrics/mAP50-95(B)"], label="mAP50-95")
-        ax_train.plot(results_df["metrics/mAP50(B)"], label="mAP50")
+        st.markdown(
+            "##### **Courbes de validation enregistrées par Ultralytics pendant "
+            "les 20 époques d’entraînement du modèle YOLOv8s retenu.**"
+        )
 
-        ax_train.set_title("mAP par epoch — YOLOv8s epochs 20", fontsize=10)
+        fig_train, ax_train = plt.subplots(figsize=(5, 3))
+
+        ax_train.plot(
+            results_df["metrics/mAP50-95(B)"],
+            label="mAP50-95",
+        )
+        ax_train.plot(
+            results_df["metrics/mAP50(B)"],
+            label="mAP50",
+        )
+
+        ax_train.set_title(
+            "mAP par epoch — YOLOv8s epochs 20",
+            fontsize=10,
+        )
         ax_train.set_xlabel("Epoch", fontsize=9)
         ax_train.set_ylabel("Score", fontsize=9)
         ax_train.set_ylim(0, 1)
@@ -721,7 +1125,20 @@ with st.expander("Partie technique du projet", expanded=False):
 
         fig_train.tight_layout()
 
-        st.pyplot(fig_train, use_container_width=False)
+        st.pyplot(fig_train, use_container_width=True)
+        plt.close(fig_train)
 
+    st.divider()
 
+    st.markdown("### Stack technique")
 
+    st.markdown(
+        """
+- **Modélisation :** Python 3.11 · YOLOv8 · PyTorch · Torchvision
+- **Expérimentation :** MLflow · Pandas · Matplotlib
+- **Application et API :** Streamlit · FastAPI
+- **Déploiement :** Docker · Hugging Face Spaces · Streamlit Community Cloud
+- **Qualité du code :** Pytest · Ruff
+- **Automatisation :** GitHub Actions · tests CI et requêtes planifiées pour réactiver l’API et le dashboard après leur mise en veille
+"""
+    )

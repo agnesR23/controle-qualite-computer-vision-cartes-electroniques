@@ -16,37 +16,41 @@ Passer d’un contrôle visuel manuel à une détection automatique des défauts
 3. **Exposer l’inférence**  
    Création d’une API FastAPI avec documentation Swagger.
 
-4. **Créer une démonstration métier**  
-   Dashboard Streamlit permettant de tester une image et de générer un rapport qualité automatique.
+4. **Créer une application métier**
+   Dashboard Streamlit permettant de contrôler une image, de visualiser les défauts détectés et de générer un rapport qualité automatique.
 
 ---
 
-## Choix du modèle
+## Choix et évaluation du modèle
 
 ![Choix du modèle](docs/screenshots/choix-modele.png)
 
 Modèle retenu : `yolov8s_epochs_20`
 
-Les expérimentations et métriques de comparaison ont été suivies avec MLflow afin de tracer les essais et faciliter la sélection du modèle final.
+Cette configuration a été sélectionnée sur le jeu de validation, où elle obtient la meilleure mAP50-95 : **0,599**. Les expérimentations ont été suivies avec MLflow.
+
+### Résultats finaux sur le jeu de test
+
+Évaluation réalisée une seule fois sur **266 images indépendantes**, après la sélection du modèle.
 
 | Métrique | Valeur |
 |---|---:|
-| mAP50-95 | 0.576 |
-| mAP50 | 0.987 |
-| Précision | 0.970 |
-| Rappel | 0.986 |
-| Temps d’inférence | 0.004 s |
+| mAP50-95 | 0,608 |
+| mAP50 | 0,985 |
+| Précision | 0,964 |
+| Rappel | 0,991 |
+| Temps de calcul local | 0,004 s/image |
 
-Le modèle retenu offre le meilleur compromis entre qualité de détection et rapidité d’inférence.
+Le modèle détecte la quasi-totalité des défauts réels. L’écart entre la mAP50 et la mAP50-95 montre que la précision de localisation des boîtes reste le principal axe d’amélioration.
 
 ---
 
-## Déploiement et démonstration
+## Déploiement et fonctionnement
 
 Le dashboard et l’API sont déployés séparément :
 
-- **dashboard** : Streamlit Community Cloud ;
-- **API d’inférence** : Hugging Face Spaces.
+- **Dashboard Streamlit** : [ouvrir l’application](https://controle-qualite-computer-vision-cartes-electroniques.streamlit.app/) ;
+- **API d’inférence** : [ouvrir le Space Hugging Face](https://huggingface.co/spaces/agnesR23/pcb-defect-detection-api).
 
 ### Fonctionnement du dashboard Streamlit
 
@@ -106,7 +110,20 @@ Le modèle entraîné n’est pas versionné dans GitHub. Il est chargé localem
 
 ## Données
 
-Les données utilisées pour l’entraînement et les images de démonstration proviennent du dataset Kaggle [PCB Defect Dataset — Norbert Elter](https://www.kaggle.com/datasets/norbertelter/pcb-defect-dataset), lui-même basé sur le dataset PCB Defect de Peking University. Les images incluses dans ce dépôt servent uniquement à illustrer le fonctionnement du projet, à des fins de démonstration non commerciale.
+Le projet utilise le [PCB Defect Dataset — Norbert Elter](https://www.kaggle.com/datasets/norbertelter/pcb-defect-dataset), basé sur le dataset PCB Defect de Peking University.
+
+Le jeu fourni contenait **10 668 images**, déjà réparties entre entraînement, validation et test. L’analyse a révélé :
+
+- des versions d’une même image — rotations à 90° et 270°, et variation de luminosité — réparties dans plusieurs jeux ;
+- **10 doublons**, regroupés en quatre groupes.
+
+Les données ont été dédupliquées puis réparties à nouveau sans fuite entre les jeux :
+
+- **8 500 images d’entraînement**, augmentations comprises ;
+- **266 images de validation** ;
+- **266 images de test**.
+
+Les 12 images incluses dans l’application proviennent du nouveau jeu de test.
 
 ---
 
@@ -176,7 +193,12 @@ test_data.py         OK
 
 ## Stack technique
 
-Python 3.11 · YOLOv8 · PyTorch · FastAPI · Streamlit · Docker · Pytest · Hugging Face Spaces
+- **Modélisation :** Python 3.11 · YOLOv8 · PyTorch · Torchvision
+- **Expérimentation :** MLflow · Pandas · Matplotlib
+- **Application et API :** Streamlit · FastAPI
+- **Déploiement :** Docker · Hugging Face Spaces · Streamlit Community Cloud
+- **Qualité du code :** Pytest · Ruff
+- **Automatisation :** GitHub Actions · tests CI et requêtes planifiées de réactivation des services
 
 ---
 
