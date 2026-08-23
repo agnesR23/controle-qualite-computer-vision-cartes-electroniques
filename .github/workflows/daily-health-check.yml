@@ -1,11 +1,11 @@
 # Copyright (C) 2026 Agnès REGAUD
 # SPDX-License-Identifier: AGPL-3.0-only
 
-name: Daily deployment health check
+name: Deployment health check
 
 on:
   schedule:
-    - cron: "15 9 * * *"
+    - cron: "37 7,15,23 * * *"
       timezone: "Europe/Paris"
   workflow_dispatch:
 
@@ -28,7 +28,25 @@ jobs:
           python -m pip install playwright==1.62.0
           python -m playwright install --with-deps chromium
 
-      - name: Wake up and check Streamlit application
+      - name: Wake up and check Hugging Face API
+        run: |
+          response="$(curl \
+            --fail \
+            --location \
+            --retry 12 \
+            --retry-all-errors \
+            --retry-delay 15 \
+            --connect-timeout 20 \
+            --max-time 300 \
+            --silent \
+            --show-error \
+            "https://agnesr23-pcb-defect-detection-api.hf.space/health")"
+
+          echo "$response"
+          echo "$response" | grep -q '"status":"ok"'
+          echo "$response" | grep -q '"model_loaded":true'
+
+      - name: Wake up and run Streamlit prediction
         run: |
           python - <<'PY'
           from playwright.sync_api import (
@@ -66,24 +84,17 @@ jobs:
                   name=expected_title,
               ).wait_for(state="visible", timeout=300_000)
 
-              print(f"Streamlit application available: {page.url}")
+              detect_button = app_frame.get_by_role(
+                  "button",
+                  name="Cliquer ici pour détecter",
+              )
+              detect_button.click()
+
+              app_frame.get_by_text(
+                  "Durée entre l’envoi de l’image par Streamlit",
+                  exact=False,
+              ).wait_for(state="visible", timeout=300_000)
+
+              print("Streamlit prediction completed successfully.")
               browser.close()
           PY
-
-      - name: Check Hugging Face API
-        run: |
-          response="$(curl \
-            --fail \
-            --location \
-            --retry 12 \
-            --retry-all-errors \
-            --retry-delay 15 \
-            --connect-timeout 20 \
-            --max-time 300 \
-            --silent \
-            --show-error \
-            "https://agnesr23-pcb-defect-detection-api.hf.space/health")"
-
-          echo "$response"
-          echo "$response" | grep -q '"status":"ok"'
-          echo "$response" | grep -q '"model_loaded":true'
