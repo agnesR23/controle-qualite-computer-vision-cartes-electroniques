@@ -5,7 +5,7 @@ name: Deployment health check
 
 on:
   schedule:
-    - cron: "37 7,15,23 * * *"
+    - cron: "37 */2 * * *"
       timezone: "Europe/Paris"
   workflow_dispatch:
 
