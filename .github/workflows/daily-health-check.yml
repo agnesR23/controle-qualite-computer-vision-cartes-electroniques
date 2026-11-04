@@ -88,8 +88,14 @@ jobs:
                   "button",
                   name="Cliquer ici pour détecter",
               )
-              detect_button.click()
-
+              try:
+                detect_button.click(timeout=300_000)
+              except PlaywrightTimeoutError:
+                page.screenshot(
+                  path="streamlit-failure.png",
+                  full_page=True,
+                )
+                raise
               app_frame.get_by_text(
                   "Durée entre l’envoi de l’image par Streamlit",
                   exact=False,
@@ -98,3 +104,12 @@ jobs:
               print("Streamlit prediction completed successfully.")
               browser.close()
           PY
+          
+      - name: Upload Streamlit failure screenshot
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: streamlit-failure
+          path: streamlit-failure.png
+          if-no-files-found: ignore
+          retention-days: 7
